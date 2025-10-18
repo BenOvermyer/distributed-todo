@@ -1,0 +1,9 @@
+[project]
+name = "distributed-todo"
+version = "0.1.0"
+description = "A client and server for keeping track of tasks"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.119.0",
+]
