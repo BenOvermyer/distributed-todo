@@ -1,4 +1,5 @@
 # todo-client/todo.py
+import argparse
 import sys
 from pathlib import Path
 
@@ -10,47 +11,47 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from common.db import create_task  # after path fix
+from common.config import load_config, init_config_file
 
-USAGE = """Usage:
-  python todo-client/todo.py create "Task content here"
-
-Example:
-  python todo-client/todo.py create "Add task creation"
-"""
-
-def handle_create(args):
-    # args will be the list after the word 'create'
-    # e.g. ["Add", "task", "creation"] or ['Add task creation']
-    if not args:
+def handle_create(config, content):
+    if not content:
         print("Error: missing task content.\n")
-        print(USAGE)
         sys.exit(1)
 
-    # Join the rest of the args as the task content.
-    task_content = " ".join(args).strip().strip('"').strip("'")
+    new_id = create_task(content, config.get("username", "default_user"), config.get("database_file", "todo_client.db"))
 
-    if not task_content:
-        print("Error: task content cannot be empty.")
-        sys.exit(1)
+    print(f"✅ Created task #{new_id}: {content}")
 
-    new_id = create_task(task_content)
+def handle_init():
+    print("Initializing config...")
 
-    print(f"✅ Created task #{new_id}: {task_content}")
+    init_config_file("client")
+
+    print("✅ Initialization complete.")
+
 
 def main():
-    if len(sys.argv) < 2:
-        print(USAGE)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Todo Client CLI")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    command = sys.argv[1].lower()
-    args_after_command = sys.argv[2:]
+    # Create subparser for the "create" command
+    create_parser = subparsers.add_parser("create", help="Create a new task")
+    create_parser.add_argument("content", help="Content of the task")
+
+    # Create subparser for the "init" command
+    init_parser = subparsers.add_parser("init", help="Initialize the client configuration")
+
+    parsed_args = parser.parse_args()
+
+    command = parsed_args.command.lower()
+
+    if command == "init":
+        handle_init()
+
+    config = load_config("client")
 
     if command == "create":
-        handle_create(args_after_command)
-    else:
-        print(f"Unknown command: {command}\n")
-        print(USAGE)
-        sys.exit(1)
+        handle_create(config, parsed_args.content)
 
 if __name__ == "__main__":
     main()
