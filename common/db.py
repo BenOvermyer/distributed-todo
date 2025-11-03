@@ -3,10 +3,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-# We'll store DB file alongside this module: common/app.db
-DB_PATH = Path(__file__).parent / "app.db"
-
-def get_conn():
+def get_conn(DB_PATH):
     """
     Return a SQLite connection to app.db.
     This also enables foreign key support (future-proof for relationships).
@@ -15,7 +12,7 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
-def init_db():
+def init_db(DB_PATH):
     """
     Ensure the tasks table exists.
     Task schema (from Initial Design and Structure):
@@ -27,7 +24,7 @@ def init_db():
         created_at    TEXT NOT NULL
         updated_at    TEXT NOT NULL
     """
-    conn = get_conn()
+    conn = get_conn(DB_PATH)
     cur = conn.cursor()
 
     cur.execute(
@@ -47,7 +44,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def create_task(content: str, username: str = "default_user", due_date: str | None = None) -> int:
+def create_task(content: str, username: str, DB_PATH: str) -> int:
     """
     Insert a new task into the tasks table.
 
@@ -60,11 +57,11 @@ def create_task(content: str, username: str = "default_user", due_date: str | No
         The new task's integer id.
     """
     # make sure table exists before insert
-    init_db()
+    init_db(DB_PATH)
 
     now = datetime.now().isoformat(timespec="seconds")
 
-    conn = get_conn()
+    conn = get_conn(DB_PATH)
     cur = conn.cursor()
 
     cur.execute(
@@ -79,7 +76,7 @@ def create_task(content: str, username: str = "default_user", due_date: str | No
         )
         VALUES (?, ?, 0, ?, ?, ?)
         """,
-        (username, content, due_date, now, now),
+        (username, content, None, now, now),
     )
 
     task_id = cur.lastrowid
