@@ -1,7 +1,8 @@
 # common/db.py
 import sqlite3
 from datetime import datetime
-from pathlib import Path
+
+from common.task import Task
 
 def get_conn(DB_PATH):
     """
@@ -44,86 +45,35 @@ def init_db(DB_PATH):
     conn.commit()
     conn.close()
 
-def list_tasks(
-    username: str,
-    DB_PATH: str,
-    only_today: bool = False,
-    only_completed: bool = False,
-) -> str:
+
+def complete_task(task_id: int, DB_PATH: str) -> None:
     """
-    Return tasks as a pretty ASCII table based on flags.
+    Mark the given task as completed in the database.
 
-    Flags:
-      --today       : due today (by due_date)
-      --completed   : completed tasks
-      both together : tasks completed today (ignores due_date)
-
-    Author: awais
+    NOTE: the original plan was to delete completed tasks after a
+    certain number were reached, but that was a performance optimization
+    that may be premature. Leaving that feature out for now.
     """
     init_db(DB_PATH)
     conn = get_conn(DB_PATH)
     cur = conn.cursor()
 
-    # Build WHERE clause
-    where = ["username = ?"]
-    params = [username]
-
-    if only_today and only_completed:
-        # Completed *today* — ignore due date
-        where.append("is_completed = 1")
-        # Compare the DATE portion of updated_at against local "today"
-        where.append("DATE(updated_at) = DATE('now','localtime')")
-    elif only_today:
-        # Due today (due_date must match today's date)
-        # If due_date is stored as 'YYYY-MM-DD' it will match; if ISO, DATE(...) will extract
-        where.append("due_date IS NOT NULL")
-        where.append("DATE(due_date) = DATE('now','localtime')")
-    elif only_completed:
-        where.append("is_completed = 1")
-
-    where_sql = " AND ".join(where)
+    now = datetime.now().isoformat(timespec="seconds")
 
     cur.execute(
-        f"""
-        SELECT id, content, is_completed, COALESCE(due_date, ''), created_at, updated_at
-        FROM tasks
-        WHERE {where_sql}
-        ORDER BY created_at ASC
+        """
+        UPDATE tasks
+        SET is_completed = 1,
+            updated_at = ?
+        WHERE id = ?
         """,
-        tuple(params),
+        (now, task_id),
     )
-    rows = cur.fetchall()
+    conn.commit()
     conn.close()
 
-    if not rows:
-        note = "No tasks found"
-        if only_today and only_completed:
-            note += " (completed today) ✅"
-        elif only_today:
-            note += " (due today) ✅"
-        elif only_completed:
-            note += " (completed) ✅"
-        else:
-            note += " ✅"
-        return note
 
-    # Header
-    header = f"{'ID':<4} | {'Task':<40} | {'Due Date':<12} | {'Completed':<10} | {'Created'}"
-    line   = "-" * len(header)
-    table_lines = [header, line]
-
-    for (task_id, content, is_completed, due_date, created_at, _updated_at) in rows:
-        content_display = (content[:37] + "...") if len(content) > 40 else content
-        is_done = "✅" if is_completed else "❌"
-        due_display = due_date if due_date else "--"
-        created_date = (created_at or "").split("T")[0] if created_at else ""
-        table_lines.append(
-            f"{task_id:<4} | {content_display:<40} | {due_display:<12} | {is_done:<10} | {created_date}"
-        )
-
-    return "\n".join(table_lines)
-
-def create_task(content: str, username: str, DB_PATH: str) -> int:
+def create_task(content: str, username: str, DB_PATH: str) -> Task:
     """
     Insert a new task into the tasks table.
 
@@ -162,4 +112,163 @@ def create_task(content: str, username: str, DB_PATH: str) -> int:
     conn.commit()
     conn.close()
 
-    return task_id
+    return Task(
+        id=task_id,
+        username=username,
+        content=content,
+        is_completed=False,
+        due_date=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def create_tasks_from_rows(rows: list[tuple]) -> list[Task]:
+    """
+    Convert a list of database rows into a list of Task objects.
+    Each row is expected to be a tuple in the order:
+    (id, username, content, is_completed, due_date, created_at, updated_at)
+    """
+    tasks = []
+    for (task_id, username, content, is_completed, due_date, created_at, updated_at) in rows:
+        tasks.append(Task(
+            id=task_id,
+            username=username,
+            content=content,
+            is_completed=bool(is_completed),
+            due_date=due_date,
+            created_at=created_at,
+            updated_at=updated_at,
+        ))
+    return tasks
+
+
+def get_task(task_id: int, DB_PATH: str) -> Task | None:
+    """
+    Return a Task object for the given task_id, or None if not found.
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT id, username, content, is_completed, due_date, created_at, updated_at
+        FROM tasks
+        WHERE id = ?
+        """,
+        (task_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if row is None:
+        return None
+
+    (task_id, username, content, is_completed, due_date, created_at, updated_at) = row
+    return Task(
+        id=task_id,
+        username=username,
+        content=content,
+        is_completed=bool(is_completed),
+        due_date=due_date,
+        created_at=created_at,
+        updated_at=updated_at,
+    )
+
+
+def get_tasks_for_user(username: str, DB_PATH: str) -> list[Task]:
+    """
+    Return all tasks for a given username as a list of Task objects.
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT id, username, content, is_completed, due_date, created_at, updated_at
+        FROM tasks
+        WHERE username = ?
+        ORDER BY created_at ASC
+        """,
+        (username,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return create_tasks_from_rows(rows)
+
+
+def get_tasks_for_user_filtered(username: str, DB_PATH: str, only_completed: bool = False, only_today: bool = False) -> list[Task]:
+    """
+    Return tasks for a given username as a list of Task objects, filtered by completion status and/or due date.
+
+    Args:
+        username: the username whose tasks to retrieve
+        DB_PATH: path to the SQLite database file
+        only_completed: if True, return only completed tasks
+        only_today: if True, return only tasks due today (or, if combined with only_completed, tasks completed today)
+    """
+
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    # Build WHERE clause
+    where = ["username = ?"]
+    params = [username]
+
+    # Unless the user wants to see completed tasks, filter them out
+    if only_completed:
+        where.append("is_completed = 1")
+    else:
+        where.append("is_completed = 0")
+
+    # Handle today/due date filtering
+    if only_today and only_completed:
+        # Completed *today* — ignore due date
+        where.append("DATE(updated_at) = DATE('now','localtime')")
+    elif only_today:
+        # Due today (due_date must match today's date)
+        where.append("due_date IS NOT NULL")
+        where.append("DATE(due_date) = DATE('now','localtime')")
+
+    where_sql = " AND ".join(where)
+
+    cur.execute(
+        f"""
+        SELECT id, username, content, is_completed, due_date, created_at, updated_at
+        FROM tasks
+        WHERE {where_sql}
+        ORDER BY created_at ASC
+        """,
+        tuple(params),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return create_tasks_from_rows(rows)
+
+
+def uncomplete_task(task_id: int, DB_PATH: str) -> None:
+    """
+    Mark the given task as not completed in the database.
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    cur.execute(
+        """
+        UPDATE tasks
+        SET is_completed = 0,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (now, task_id),
+    )
+    conn.commit()
+    conn.close()
