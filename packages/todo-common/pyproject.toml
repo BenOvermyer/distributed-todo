@@ -2,3 +2,4 @@
 name = "todo-common"
 version = "0.1.0"
 description = "Common utilities for the distributed todo application"
+dependencies = ["pytest>=8.4.2"]
