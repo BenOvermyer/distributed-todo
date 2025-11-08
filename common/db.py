@@ -272,3 +272,58 @@ def uncomplete_task(task_id: int, DB_PATH: str) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def set_due_date(task_id: int, due_date: str, DB_PATH: str) -> None:
+    """
+    Set the due date for the given task in the database.
+    
+    Args:
+        task_id: ID of the task to update
+        due_date: Date string in YYYY-MM-DD format
+        DB_PATH: path to the SQLite database file
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    cur.execute(
+        """
+        UPDATE tasks
+        SET due_date = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (due_date, now, task_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def remove_due_date(task_id: int, DB_PATH: str) -> None:
+    """
+    Remove the due date from the given task in the database.
+    
+    Args:
+        task_id: ID of the task to update
+        DB_PATH: path to the SQLite database file
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    cur.execute(
+        """
+        UPDATE tasks
+        SET due_date = NULL,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (now, task_id),
+    )
+    conn.commit()
+    conn.close()

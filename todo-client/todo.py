@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from common.db import complete_task, create_task, uncomplete_task
-from common.db import get_tasks_for_user_filtered
+from common.db import get_tasks_for_user_filtered, set_due_date, remove_due_date
 from common.config import load_config, init_config_file
 from display import get_task_table
 
@@ -55,6 +55,33 @@ def handle_uncomplete(config, task_id: str):
     print(f"❌ Marked task #{task_id} as incomplete.")
 
 
+def handle_due(config, task_id: str, due_date: str):
+    print(f"Handling due date for task #{task_id} to {due_date}.")
+    import re
+    from datetime import datetime
+    
+    # Validate date format YYYY-MM-DD
+    date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+    if not re.match(date_pattern, due_date):
+        print(f"Error: Invalid date format. Please use YYYY-MM-DD (e.g., 2025-12-01).")
+        sys.exit(1)
+    
+    # Validate that it's a valid date
+    try:
+        datetime.strptime(due_date, '%Y-%m-%d')
+    except ValueError:
+        print(f"Error: Invalid date format. Please use YYYY-MM-DD (e.g., 2025-12-01).")
+        sys.exit(1)
+    
+    set_due_date(int(task_id), due_date, config.get("database_file", "todo_client.db"))
+    print(f"📅 Set due date for task #{task_id} to {due_date}.")
+
+
+def handle_undue(config, task_id: str):
+    remove_due_date(int(task_id), config.get("database_file", "todo_client.db"))
+    print(f"📅 Removed due date from task #{task_id}.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Todo Client CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -90,6 +117,15 @@ def main():
     uncomplete_parser = subparsers.add_parser("uncomplete", help="Mark a task as incomplete")
     uncomplete_parser.add_argument("task_id", help="ID of the task to mark as incomplete")
 
+    # Create subparser for the "due" command
+    due_parser = subparsers.add_parser("due", help="Set a due date for a task")
+    due_parser.add_argument("task_id", help="ID of the task to set due date for")
+    due_parser.add_argument("due_date", help="Due date in YYYY-MM-DD format (e.g., 2025-12-01)")
+
+    # Create subparser for the "undue" command
+    undue_parser = subparsers.add_parser("undue", help="Remove the due date from a task")
+    undue_parser.add_argument("task_id", help="ID of the task to remove due date from")
+
     parsed_args = parser.parse_args()
 
     command = parsed_args.command.lower()
@@ -114,6 +150,12 @@ def main():
 
     if command == "uncomplete":
         handle_uncomplete(config, parsed_args.task_id)
+
+    if command == "due":
+        handle_due(config, parsed_args.task_id, parsed_args.due_date)
+
+    if command == "undue":
+        handle_undue(config, parsed_args.task_id)
 
 
 if __name__ == "__main__":
