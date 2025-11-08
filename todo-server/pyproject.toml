@@ -1,0 +1,12 @@
+[project]
+name = "todo-server"
+version = "0.1.0"
+description = "A server for keeping track of tasks"
+dependencies = ["todo-common", "fastapi[standard]>=0.119.0"]
+
+[project.scripts]
+todo-server = "todo_server.main:app"
+
+[build-system]
+requires = ["uv_build>=0.9.8,<0.10.0"]
+build-backend = "uv_build"

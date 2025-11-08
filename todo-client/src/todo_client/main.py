@@ -1,19 +1,9 @@
-# todo-client/todo.py
 import argparse
 import sys
-from pathlib import Path
-
-# Make sure Python can import the 'common' package when run as a script.
-# We'll add project root to sys.path so "import common.db" works even if
-# you call `python todo-client/todo.py ...`
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from common.db import complete_task, create_task, uncomplete_task
-from common.db import get_tasks_for_user_filtered, set_due_date, remove_due_date
-from common.config import load_config, init_config_file
-from display import get_task_table
+from todo_common.db import complete_task, create_task, uncomplete_task, update_task_content
+from todo_common.db import get_tasks_for_user_filtered, set_due_date, remove_due_date
+from todo_common.config import load_config, init_config_file
+from todo_client.display import get_task_table
 
 def handle_list(config, only_today, only_completed):
     tasks = get_tasks_for_user_filtered(
@@ -53,6 +43,12 @@ def handle_init():
 def handle_uncomplete(config, task_id: str):
     uncomplete_task(task_id, config.get("database_file", "todo_client.db"))
     print(f"❌ Marked task #{task_id} as incomplete.")
+
+
+def handle_update(config, task_id: str, new_content: str):
+    print(f"Updating task #{task_id} to new content: {new_content}")
+    update_task_content(int(task_id), new_content, config.get("database_file", "todo_client.db"))
+    print(f"✏️ Updated task #{task_id}.")
 
 
 def handle_due(config, task_id: str, due_date: str):
@@ -117,6 +113,11 @@ def main():
     uncomplete_parser = subparsers.add_parser("uncomplete", help="Mark a task as incomplete")
     uncomplete_parser.add_argument("task_id", help="ID of the task to mark as incomplete")
 
+    # Create subparser for the "update" command
+    update_parser = subparsers.add_parser("update", help="Update the content of a task")
+    update_parser.add_argument("task_id", help="ID of the task to update")
+    update_parser.add_argument("new_content", help="New content for the task")
+
     # Create subparser for the "due" command
     due_parser = subparsers.add_parser("due", help="Set a due date for a task")
     due_parser.add_argument("task_id", help="ID of the task to set due date for")
@@ -156,6 +157,9 @@ def main():
 
     if command == "undue":
         handle_undue(config, parsed_args.task_id)
+
+    if command == "update":
+        handle_update(config, parsed_args.task_id, parsed_args.new_content)
 
 
 if __name__ == "__main__":

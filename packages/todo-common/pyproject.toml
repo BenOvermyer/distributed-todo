@@ -1,0 +1,4 @@
+[project]
+name = "todo-common"
+version = "0.1.0"
+description = "Common utilities for the distributed todo application"

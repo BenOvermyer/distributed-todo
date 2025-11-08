@@ -1,0 +1,7 @@
+services:
+    app:
+        build: .
+        container_name: app
+        ports:
+            - "8030:80"
+        restart: unless-stopped
