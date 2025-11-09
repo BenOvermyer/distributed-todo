@@ -7,8 +7,8 @@ from datetime import datetime
 # Ensure the project root is in sys.path for module resolution
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common import db
-from common.task import Task
+from todo_common import db
+from todo_common.task import Task
 
 """
 These tests cover operations in common/db.py. 
@@ -200,5 +200,43 @@ def test_set_and_remove_due_date():
         # Remove due date
         db.remove_due_date(task.id, db_path)
         assert db.get_task(task.id, db_path).due_date is None
+    finally:
+        os.remove(db_path)
+
+
+def test_update_task_content_success():
+    import time
+    with tempfile.NamedTemporaryFile(delete=False) as tf:
+        db_path = tf.name
+    try:
+        db.init_db(db_path)
+        task = db.create_task("Original content", "jane", db_path)
+        fetched = db.get_task(task.id, db_path)
+        assert fetched.content == "Original content"
+        old_updated_at = fetched.updated_at
+        # Ensure updated_at will change
+        time.sleep(1)
+        db.update_task_content(task.id, "Updated content", db_path)
+        updated = db.get_task(task.id, db_path)
+        assert updated.content == "Updated content"
+        assert updated.updated_at != old_updated_at
+    finally:
+        os.remove(db_path)
+
+
+def test_update_task_content_nonexistent():
+    with tempfile.NamedTemporaryFile(delete=False) as tf:
+        db_path = tf.name
+    try:
+        db.init_db(db_path)
+        # No tasks created, update nonexistent id
+        db.update_task_content(9999, "Should not fail", db_path)
+        # Should not raise, and no tasks should exist
+        conn = db.get_conn(db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM tasks;")
+        count = cur.fetchone()[0]
+        assert count == 0
+        conn.close()
     finally:
         os.remove(db_path)

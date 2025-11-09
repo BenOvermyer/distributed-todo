@@ -6,7 +6,7 @@ import os
 # Ensure the project root is in sys.path for module resolution
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from common import config
+from todo_common import config
 
 # NOTE: The below tests were written using assistance from GitHub Copilot.
 

@@ -2,7 +2,7 @@
 import sqlite3
 from datetime import datetime
 
-from common.task import Task
+from todo_common.task import Task
 
 def get_conn(DB_PATH):
     """
@@ -269,6 +269,34 @@ def uncomplete_task(task_id: int, DB_PATH: str) -> None:
         WHERE id = ?
         """,
         (now, task_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_task_content(task_id: int, new_content: str, DB_PATH: str) -> None:
+    """
+    Update the content of the given task in the database.
+    
+    Args:
+        task_id: ID of the task to update
+        new_content: new text content for the task
+        DB_PATH: path to the SQLite database file
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    cur.execute(
+        """
+        UPDATE tasks
+        SET content = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (new_content, now, task_id),
     )
     conn.commit()
     conn.close()
