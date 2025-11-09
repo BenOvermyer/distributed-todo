@@ -39,7 +39,7 @@ def test_init_config_file_creates_file(monkeypatch):
         with open(config_path) as f:
             content = f.read()
         assert "username=default_user" in content
-        assert "server_url=http://localhost:9777" in content
+        assert "server_url=http://localhost:8030" in content
         assert "database_file=todo_client.db" in content
 
 
