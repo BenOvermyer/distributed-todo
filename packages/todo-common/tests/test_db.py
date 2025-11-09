@@ -1,11 +1,10 @@
 import os
 import tempfile
 import sys
-from pathlib import Path
 from datetime import datetime
 
 # Ensure the project root is in sys.path for module resolution
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from todo_common import db
 from todo_common.task import Task
@@ -19,6 +18,7 @@ while still letting us test real database interactions.
 NOTE: These tests were written with GitHub Copilot's help.
 """
 
+
 def test_init_db_creates_table():
     with tempfile.NamedTemporaryFile(delete=False) as tf:
         db_path = tf.name
@@ -26,13 +26,16 @@ def test_init_db_creates_table():
         db.init_db(db_path)
         conn = db.get_conn(db_path)
         cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks';")
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='tasks';"
+        )
 
         assert cur.fetchone() is not None
 
         conn.close()
     finally:
         os.remove(db_path)
+
 
 def test_create_and_get_task():
     with tempfile.NamedTemporaryFile(delete=False) as tf:
@@ -51,6 +54,7 @@ def test_create_and_get_task():
     finally:
         os.remove(db_path)
 
+
 def test_get_tasks_for_user():
     with tempfile.NamedTemporaryFile(delete=False) as tf:
         db_path = tf.name
@@ -67,6 +71,7 @@ def test_get_tasks_for_user():
     finally:
         os.remove(db_path)
 
+
 def test_get_tasks_for_user_filtered_completed():
     with tempfile.NamedTemporaryFile(delete=False) as tf:
         db_path = tf.name
@@ -74,15 +79,16 @@ def test_get_tasks_for_user_filtered_completed():
         db.init_db(db_path)
         db.create_task("Task 1", "dave", db_path)
         t2 = db.create_task("Task 2", "dave", db_path)
-        
+
         # Mark t2 as completed
         db.complete_task(t2.id, db_path)
         completed = db.get_tasks_for_user_filtered("dave", db_path, only_completed=True)
-        
+
         assert len(completed) == 1
         assert completed[0].id == t2.id
     finally:
         os.remove(db_path)
+
 
 def test_get_tasks_for_user_filtered_today():
     with tempfile.NamedTemporaryFile(delete=False) as tf:
@@ -91,7 +97,7 @@ def test_get_tasks_for_user_filtered_today():
         db.init_db(db_path)
         t1 = db.create_task("Task 1", "eve", db_path)
         # Set due_date to today
-        
+
         today = datetime.now().strftime("%Y-%m-%d")
         conn = db.get_conn(db_path)
         cur = conn.cursor()
@@ -206,6 +212,7 @@ def test_set_and_remove_due_date():
 
 def test_update_task_content_success():
     import time
+
     with tempfile.NamedTemporaryFile(delete=False) as tf:
         db_path = tf.name
     try:

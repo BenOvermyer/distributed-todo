@@ -23,6 +23,9 @@ jobs:
         working-directory: packages/todo-common
         run: uv sync --locked --all-extras --dev
 
+      - name: Run ruff check
+        run: uvx ruff check
+
       - name: Run tests
         working-directory: packages/todo-common
         run: uv run pytest tests

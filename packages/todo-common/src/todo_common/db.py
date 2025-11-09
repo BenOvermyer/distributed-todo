@@ -4,6 +4,7 @@ from datetime import datetime
 
 from todo_common.task import Task
 
+
 def get_conn(DB_PATH):
     """
     Return a SQLite connection to app.db.
@@ -13,14 +14,16 @@ def get_conn(DB_PATH):
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
+
 def init_db(DB_PATH):
     """
     Ensure the tasks table exists.
-    Task schema (from Initial Design and Structure):
+    Task schema:
         id            INTEGER PRIMARY KEY AUTOINCREMENT
         username      TEXT NOT NULL
         content       TEXT NOT NULL
         is_completed  INTEGER NOT NULL DEFAULT 0
+        is_deleted    INTEGER NOT NULL DEFAULT 0
         due_date      TEXT
         created_at    TEXT NOT NULL
         updated_at    TEXT NOT NULL
@@ -35,12 +38,78 @@ def init_db(DB_PATH):
             username TEXT NOT NULL,
             content TEXT NOT NULL,
             is_completed INTEGER NOT NULL DEFAULT 0,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
             due_date TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
         """
     )
+
+    conn.commit()
+    conn.close()
+
+
+def add_full_task(task: Task, DB_PATH: str, use_existing_id: bool = True) -> None:
+    """
+    Insert a full Task object into the tasks table.
+    Used for syncing tasks from server to client or vice versa.
+    """
+    init_db(DB_PATH)
+
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    if use_existing_id:
+        cur.execute(
+            """
+            INSERT INTO tasks (
+                id,
+                username,
+                content,
+                is_completed,
+                is_deleted,
+                due_date,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                task.id,
+                task.username,
+                task.content,
+                int(task.is_completed),
+                int(task.is_deleted),
+                task.due_date,
+                task.created_at,
+                task.updated_at,
+            ),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO tasks (
+                username,
+                content,
+                is_completed,
+                is_deleted,
+                due_date,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                task.username,
+                task.content,
+                int(task.is_completed),
+                int(task.is_deleted),
+                task.due_date,
+                task.created_at,
+                task.updated_at,
+            ),
+        )
 
     conn.commit()
     conn.close()
@@ -80,7 +149,6 @@ def create_task(content: str, username: str, DB_PATH: str) -> Task:
     Args:
         content: text of the task (e.g. "Finish report")
         username: owner/creator of task. default stub for now.
-        due_date: optional due date string (e.g. "2025-11-01"), can be None.
 
     Returns:
         The new task's integer id.
@@ -99,11 +167,12 @@ def create_task(content: str, username: str, DB_PATH: str) -> Task:
             username,
             content,
             is_completed,
+            is_deleted,
             due_date,
             created_at,
             updated_at
         )
-        VALUES (?, ?, 0, ?, ?, ?)
+        VALUES (?, ?, 0, 0, ?, ?, ?)
         """,
         (username, content, None, now, now),
     )
@@ -117,6 +186,7 @@ def create_task(content: str, username: str, DB_PATH: str) -> Task:
         username=username,
         content=content,
         is_completed=False,
+        is_deleted=False,
         due_date=None,
         created_at=now,
         updated_at=now,
@@ -130,16 +200,28 @@ def create_tasks_from_rows(rows: list[tuple]) -> list[Task]:
     (id, username, content, is_completed, due_date, created_at, updated_at)
     """
     tasks = []
-    for (task_id, username, content, is_completed, due_date, created_at, updated_at) in rows:
-        tasks.append(Task(
-            id=task_id,
-            username=username,
-            content=content,
-            is_completed=bool(is_completed),
-            due_date=due_date,
-            created_at=created_at,
-            updated_at=updated_at,
-        ))
+    for (
+        task_id,
+        username,
+        content,
+        is_completed,
+        is_deleted,
+        due_date,
+        created_at,
+        updated_at,
+    ) in rows:
+        tasks.append(
+            Task(
+                id=task_id,
+                username=username,
+                content=content,
+                is_completed=bool(is_completed),
+                is_deleted=bool(is_deleted),
+                due_date=due_date,
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+        )
     return tasks
 
 
@@ -153,7 +235,7 @@ def get_task(task_id: int, DB_PATH: str) -> Task | None:
 
     cur.execute(
         """
-        SELECT id, username, content, is_completed, due_date, created_at, updated_at
+        SELECT id, username, content, is_completed, is_deleted, due_date, created_at, updated_at
         FROM tasks
         WHERE id = ?
         """,
@@ -165,12 +247,22 @@ def get_task(task_id: int, DB_PATH: str) -> Task | None:
     if row is None:
         return None
 
-    (task_id, username, content, is_completed, due_date, created_at, updated_at) = row
+    (
+        task_id,
+        username,
+        content,
+        is_completed,
+        is_deleted,
+        due_date,
+        created_at,
+        updated_at,
+    ) = row
     return Task(
         id=task_id,
         username=username,
         content=content,
         is_completed=bool(is_completed),
+        is_deleted=bool(is_deleted),
         due_date=due_date,
         created_at=created_at,
         updated_at=updated_at,
@@ -187,7 +279,7 @@ def get_tasks_for_user(username: str, DB_PATH: str) -> list[Task]:
 
     cur.execute(
         """
-        SELECT id, username, content, is_completed, due_date, created_at, updated_at
+        SELECT id, username, content, is_completed, is_deleted, due_date, created_at, updated_at
         FROM tasks
         WHERE username = ?
         ORDER BY created_at ASC
@@ -200,7 +292,9 @@ def get_tasks_for_user(username: str, DB_PATH: str) -> list[Task]:
     return create_tasks_from_rows(rows)
 
 
-def get_tasks_for_user_filtered(username: str, DB_PATH: str, only_completed: bool = False, only_today: bool = False) -> list[Task]:
+def get_tasks_for_user_filtered(
+    username: str, DB_PATH: str, only_completed: bool = False, only_today: bool = False
+) -> list[Task]:
     """
     Return tasks for a given username as a list of Task objects, filtered by completion status and/or due date.
 
@@ -234,11 +328,12 @@ def get_tasks_for_user_filtered(username: str, DB_PATH: str, only_completed: boo
         where.append("due_date IS NOT NULL")
         where.append("DATE(due_date) = DATE('now','localtime')")
 
+    where.append("is_deleted = 0")
     where_sql = " AND ".join(where)
 
     cur.execute(
         f"""
-        SELECT id, username, content, is_completed, due_date, created_at, updated_at
+        SELECT id, username, content, is_completed, is_deleted, due_date, created_at, updated_at
         FROM tasks
         WHERE {where_sql}
         ORDER BY created_at ASC
@@ -249,6 +344,82 @@ def get_tasks_for_user_filtered(username: str, DB_PATH: str, only_completed: boo
     conn.close()
 
     return create_tasks_from_rows(rows)
+
+
+def get_users(DB_PATH: str) -> list[str]:
+    """
+    Return a list of all usernames in the tasks database.
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT DISTINCT username
+        FROM tasks
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [row[0] for row in rows]
+
+
+def sync_task(task: Task, DB_PATH: str) -> None:
+    """
+    Insert or update a task in the database based on its ID.
+    If the task with the given ID exists, update it; otherwise, insert it.
+    """
+    # Check if task with given ID exists
+    existing_task = get_task(task.id, DB_PATH)
+
+    if existing_task is None:
+        add_full_task(task, DB_PATH)
+        return
+
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    # If the existing task has been updated more recently, skip updating
+    if existing_task.updated_at >= task.updated_at:
+        return
+
+    # If the created_at timestamps differ, then these are divergent tasks and we want to keep both
+    if (
+        existing_task.created_at != task.created_at
+        and existing_task.content != task.content
+    ):
+        add_full_task(task, DB_PATH, use_existing_id=False)
+        return
+
+    # Update existing task
+    cur.execute(
+        """
+        UPDATE tasks
+        SET username = ?,
+            content = ?,
+            is_completed = ?,
+            is_deleted = ?,
+            due_date = ?,
+            created_at = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            task.username,
+            task.content,
+            int(task.is_completed),
+            int(task.is_deleted),
+            task.due_date,
+            task.created_at,
+            task.updated_at,
+            task.id,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
 
 
 def uncomplete_task(task_id: int, DB_PATH: str) -> None:
@@ -277,7 +448,7 @@ def uncomplete_task(task_id: int, DB_PATH: str) -> None:
 def update_task_content(task_id: int, new_content: str, DB_PATH: str) -> None:
     """
     Update the content of the given task in the database.
-    
+
     Args:
         task_id: ID of the task to update
         new_content: new text content for the task
@@ -305,7 +476,7 @@ def update_task_content(task_id: int, new_content: str, DB_PATH: str) -> None:
 def set_due_date(task_id: int, due_date: str, DB_PATH: str) -> None:
     """
     Set the due date for the given task in the database.
-    
+
     Args:
         task_id: ID of the task to update
         due_date: Date string in YYYY-MM-DD format
@@ -333,7 +504,7 @@ def set_due_date(task_id: int, due_date: str, DB_PATH: str) -> None:
 def remove_due_date(task_id: int, DB_PATH: str) -> None:
     """
     Remove the due date from the given task in the database.
-    
+
     Args:
         task_id: ID of the task to update
         DB_PATH: path to the SQLite database file
