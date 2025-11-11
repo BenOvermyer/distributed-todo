@@ -2,7 +2,11 @@
 name = "todo-client"
 version = "0.1.0"
 description = "A client for keeping track of tasks"
-dependencies = ["todo-common", "prettytable>=3.16.0"]
+dependencies = [
+    "todo-common",
+    "prettytable>=3.16.0",
+    "requests>=2.32.5",
+]
 
 [project.scripts]
 todo-client = "todo_client.main:main"
