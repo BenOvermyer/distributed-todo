@@ -3,7 +3,6 @@ import requests
 import sys
 from dataclasses import asdict
 from todo_common.db import (
-    add_full_task,
     complete_task,
     create_task,
     delete_task,

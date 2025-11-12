@@ -3,7 +3,7 @@ import os
 import tempfile
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Ensure the project root is in sys.path for module resolution
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -83,11 +83,11 @@ def test_cross_client_new_task_sync(test_dbs):
     server_db = test_dbs["server"]
 
     # Client 1 creates a task
-    task1 = db.create_task("Task from client1", "alice", client1_db)
+    db.create_task("Task from client1", "alice", client1_db)
     time.sleep(1) # Pause for a moment to ensure different timestamps
 
     # Client 2 creates a different task
-    task2 = db.create_task("Task from client2", "alice", client2_db)
+    db.create_task("Task from client2", "alice", client2_db)
     time.sleep(1)  # Pause for a moment to ensure different timestamps
 
     client1_tasks = db.get_tasks_for_user("alice", client1_db)
