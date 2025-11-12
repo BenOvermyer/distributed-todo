@@ -160,6 +160,71 @@ def test_conflict_scenario(test_dbs):
     assert server_task.content == "Client2 update"
 
 
+# Test: syncing a deleted task from client to server
+def test_sync_deleted_task_from_client_to_server(test_dbs):
+    client_db = test_dbs["client1"]
+    server_db = test_dbs["server"]
+
+    # Client creates and syncs a task
+    task = db.create_task("Task to delete", "alice", client_db)
+    db.sync_task(task, server_db)
+
+    time.sleep(1)
+
+    # Client deletes the task
+    db.delete_task(task.id, client_db)
+
+    # Sync the deleted task to the server
+    deleted_task = db.get_task(task.id, client_db)
+    db.sync_task(deleted_task, server_db)
+
+    # Server should now have the task marked as deleted
+    server_task = db.get_task(task.id, server_db)
+    assert server_task is not None
+    assert server_task.is_deleted is True
+
+
+# Test: syncing a deleted task from client to server and then to another client
+def test_sync_deleted_task_from_client_to_server_and_another_client(test_dbs):
+    client_db = test_dbs["client1"]
+    server_db = test_dbs["server"]
+    client2_db = test_dbs["client2"]
+
+    # Client creates and syncs a task
+    task = db.create_task("Task to delete", "alice", client_db)
+    db.sync_task(task, server_db)
+
+    time.sleep(1)
+
+    # Client 2 syncs with the server
+    db.sync_tasks(db.get_tasks_for_user("alice", server_db), client2_db, clear_first=True)
+
+    time.sleep(1)
+
+    # Client deletes the task
+    db.delete_task(task.id, client_db)
+
+    # Sync the deleted task to the server
+    deleted_task = db.get_task(task.id, client_db)
+    db.sync_task(deleted_task, server_db)
+
+    time.sleep(1)
+
+    # Client 2 syncs with the server
+    db.sync_tasks(db.get_tasks_for_user("alice", server_db), client2_db, clear_first=True)
+
+    # Server should now have the task marked as deleted
+    server_task = db.get_task(task.id, server_db)
+    assert server_task is not None
+    assert server_task.is_deleted is True
+
+    # Client 2 should also see the task as deleted
+    client2_task = db.get_task(task.id, client2_db)
+    assert client2_task is not None
+    assert client2_task.is_deleted is True
+
+
+
 def test_init_db_creates_table():
     with tempfile.NamedTemporaryFile(delete=False) as tf:
         db_path = tf.name
