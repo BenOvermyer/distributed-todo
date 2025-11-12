@@ -3,17 +3,15 @@ import requests
 import sys
 from dataclasses import asdict
 from todo_common.db import (
-    add_full_task,
     complete_task,
     create_task,
     delete_task,
     uncomplete_task,
     update_task_content,
-)
-from todo_common.db import (
     get_tasks_for_user,
     get_tasks_for_user_filtered,
     set_due_date,
+    sync_tasks,
     remove_due_date,
 )
 from todo_common.config import load_config, init_config_file
@@ -78,14 +76,12 @@ def handle_sync(config):
         sys.exit(1)
 
     server_response = response.json()
+
+    tasks = []
+    for t in server_response.get("tasks", []):
+        tasks.append(Task(**t))
     
-    # Easiest way to ensure consistency is to just overwrite local db with server state
-    with open(config.get("database_file", "todo_client.db"), "w"):
-        pass  # Clear local database file
-
-    for task in server_response.get("tasks", []):
-        add_full_task(Task(**task), config.get("database_file", "todo_client.db"))
-
+    sync_tasks(tasks, config.get("database_file", "todo_client.db"), clear_first=True)
     print("✅ Sync complete.")
 
 

@@ -50,7 +50,7 @@ def init_db(DB_PATH):
     conn.close()
 
 
-def add_full_task(task: Task, DB_PATH: str, use_existing_id: bool = True) -> None:
+def add_full_task(task: Task, DB_PATH: str, use_existing_id: bool = True) -> Task:
     """
     Insert a full Task object into the tasks table.
     Used for syncing tasks from server to client or vice versa.
@@ -111,8 +111,20 @@ def add_full_task(task: Task, DB_PATH: str, use_existing_id: bool = True) -> Non
             ),
         )
 
+    task_id = cur.lastrowid
     conn.commit()
     conn.close()
+
+    return Task(
+        id=task_id,
+        username=task.username,
+        content=task.content,
+        is_completed=task.is_completed,
+        is_deleted=task.is_deleted,
+        due_date=task.due_date,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+    )
 
 
 def complete_task(task_id: int, DB_PATH: str) -> None:
@@ -371,18 +383,22 @@ def sync_task(task: Task, DB_PATH: str) -> None:
     Insert or update a task in the database based on its ID.
     If the task with the given ID exists, update it; otherwise, insert it.
     """
+    print(f"Syncing task ID {task.id} '{task.content}' for user {task.username} into DB at {DB_PATH}")
+
     # Check if task with given ID exists
     existing_task = get_task(task.id, DB_PATH)
 
     if existing_task is None:
-        add_full_task(task, DB_PATH)
+        print(f"Adding new task ID {task.id} '{task.content}' for user {task.username}")
+        new_task = add_full_task(task, DB_PATH)
+        print(f"New task added with ID {new_task.id}")
         return
 
-    conn = get_conn(DB_PATH)
-    cur = conn.cursor()
+    print(f"Task ID {task.id} '{task.content}' exists. Comparing timestamps...")
 
     # If the existing task has been updated more recently, skip updating
     if existing_task.updated_at >= task.updated_at:
+        print(f"Skipping update for task ID {task.id} '{task.content}' (existing is newer, {existing_task.updated_at} >= {task.updated_at})")
         return
 
     # If the created_at timestamps differ, then these are divergent tasks and we want to keep both
@@ -390,8 +406,15 @@ def sync_task(task: Task, DB_PATH: str) -> None:
         existing_task.created_at != task.created_at
         and existing_task.content != task.content
     ):
-        add_full_task(task, DB_PATH, use_existing_id=False)
+        print(
+            f"Divergent tasks detected for ID {task.id} ('{existing_task.content}' vs. '{task.content}'). Keeping both by adding new task."
+        )
+        new_task = add_full_task(task, DB_PATH, use_existing_id=False)
+        print(f"New task added with ID {new_task.id}")
         return
+
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
 
     # Update existing task
     cur.execute(
@@ -420,6 +443,18 @@ def sync_task(task: Task, DB_PATH: str) -> None:
 
     conn.commit()
     conn.close()
+
+
+def sync_tasks(tasks: list[Task], DB_PATH: str, clear_first: bool) -> None:
+    """
+    Sync a list of tasks into the database.
+    """
+    if clear_first:
+        with open(DB_PATH, "w"):
+            pass  # Clear local database file
+
+    for task in tasks:
+        sync_task(task, DB_PATH)
 
 
 def uncomplete_task(task_id: int, DB_PATH: str) -> None:
