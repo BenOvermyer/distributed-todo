@@ -526,3 +526,31 @@ def remove_due_date(task_id: int, DB_PATH: str) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def delete_task(task_id: int, DB_PATH: str) -> None:
+    """
+    Mark the given task as deleted in the database (soft delete).
+    The task is not removed from the database, but its is_deleted field is set to 1.
+
+    Args:
+        task_id: ID of the task to delete
+        DB_PATH: path to the SQLite database file
+    """
+    init_db(DB_PATH)
+    conn = get_conn(DB_PATH)
+    cur = conn.cursor()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    cur.execute(
+        """
+        UPDATE tasks
+        SET is_deleted = 1,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (now, task_id),
+    )
+    conn.commit()
+    conn.close()

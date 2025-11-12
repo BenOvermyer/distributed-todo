@@ -6,6 +6,7 @@ from todo_common.db import (
     add_full_task,
     complete_task,
     create_task,
+    delete_task,
     uncomplete_task,
     update_task_content,
 )
@@ -128,6 +129,11 @@ def handle_undue(config, task_id: str):
     print(f"📅 Removed due date from task #{task_id}.")
 
 
+def handle_delete(config, task_id: str):
+    delete_task(int(task_id), config.get("database_file", "todo_client.db"))
+    print(f"🗑️  Deleted task #{task_id}.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Todo Client CLI")
     parser.add_argument("--config", type=str, default=None, help="Path to config file")
@@ -185,6 +191,10 @@ def main():
     )
     undue_parser.add_argument("task_id", help="ID of the task to remove due date from")
 
+    # Create subparser for the "delete" command
+    delete_parser = subparsers.add_parser("delete", help="Delete a task (soft delete)")
+    delete_parser.add_argument("task_id", type=int, help="ID of the task to delete")
+
     # Create subparser for the "sync" command
     subparsers.add_parser("sync", help="Sync local tasks with the remote server")
 
@@ -225,6 +235,9 @@ def main():
 
     if command == "update":
         handle_update(config, parsed_args.task_id, parsed_args.new_content)
+
+    if command == "delete":
+        handle_delete(config, str(parsed_args.task_id))
 
 
 if __name__ == "__main__":
